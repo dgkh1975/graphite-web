@@ -1,6 +1,19 @@
 # 1.2.0 (master/unreleased)
 
 ## graphite-web
+### Bug Fixes
+* Depend on third-party scandir only for Python < 3.5 (#2706, @neirbowj)
+* fix shifting of moving* datapoints by one step into the future (#2682, @zivillian)
+
+
+## whisper
+### Features / Enhancements
+
+* whisper-update takes values from stdin (#318, @rowlap)
+
+# 1.1.8
+
+## graphite-web
 
 ### Bug Fixes
  - ensure that all tag values are strings (#2572, @DanCech)
@@ -25,8 +38,11 @@
  - utf-8 fix in unpickle (#2660, @piotr1212 / @ploxlin)
  - Fix expand braces (#2661, Aleksandr Cupacenko / @deniszh )
  - Fix paths not matching description (@thedoc31)
+ - Amend web install docs (#2677, @deniszh)
+ - Resolves #2692 can't unpickle Interval/IntervalSet (#2693, @drawks)
 
 ### Features / Enhancements
+ - Better logs on invalid input (#2590, @replay)
  - [Settings] Allow pickle protocol to be configurable for carbonlink requests. (#2591, @alikhtag)
  - List Promitor as a collector tool (#2605, @tomkerkhove)
  - REsynthesize: New script forked from Synthesize to install Graphite on CentOS (#2631, @deividgdt)
@@ -34,6 +50,7 @@
  - Find api documentation (Fixing #2616) (#2646, @deniszh)
  - Add aggregateSeriesLists() and aliases for diffSeriesLists(), sumSeriesLists(), multiplySeriesLists() (#2647, @alikhtag)
  - Optionally resolve right hand dip in sums because of lack of current minute in caches (#2659, @cbowman0)
+ - You can disable info.log now (fixing #1860) (#2691, @deniszh)
  
 ## carbon
 
