@@ -16,9 +16,9 @@ from django.conf import settings
 try:
     from django.urls import reverse
 except ImportError:  # Django < 1.10
-    from django.core.urlresolvers import reverse
+    from django.urls import reverse
 
-from graphite.errors import NormalizeEmptyResultError
+from graphite.errors import NormalizeEmptyResultError, InputParameterError
 from graphite.functions import _SeriesFunctions, loadFunctions, safe
 from graphite.render.datalib import TimeSeries
 from graphite.render import functions
@@ -467,7 +467,7 @@ class FunctionsTest(TestCase):
     #
     def test_matchSeries_assert(self):
         seriesList = self._generate_series_list()
-        with self.assertRaisesRegexp(AssertionError, 'The number of series in each argument must be the same'):
+        with self.assertRaisesRegex(AssertionError, 'The number of series in each argument must be the same'):
             functions.matchSeries(seriesList[0], [])
 
     def test_matchSeries_empty(self):
@@ -682,7 +682,7 @@ class FunctionsTest(TestCase):
         self.assertEqual(result, expectedList)
 
     def test_aggregate_invalidFunc(self):
-        with self.assertRaisesRegexp(Exception, "Unsupported aggregation function: blahSeries"):
+        with self.assertRaisesRegex(Exception, "Unsupported aggregation function: blahSeries"):
             functions.aggregate({}, [], 'blahSeries')
 
     def test_aggregate_emptySeries(self):
@@ -730,7 +730,7 @@ class FunctionsTest(TestCase):
         self.assertEqual(result, expectedList)
 
     def test_percentileOfSeries_0th_percentile(self):
-        with self.assertRaisesRegexp(ValueError, 'The requested percent is required to be greater than 0'):
+        with self.assertRaisesRegex(ValueError, 'The requested percent is required to be greater than 0'):
             functions.percentileOfSeries({}, [], 0)
 
     def test_percentileOfSeries_empty_series(self):
@@ -960,7 +960,7 @@ class FunctionsTest(TestCase):
             ]
         )
 
-        with self.assertRaisesRegexp(ValueError, "asPercent second argument must be missing, a single digit, reference exactly 1 series or reference the same number of series as the first argument"):
+        with self.assertRaisesRegex(ValueError, "asPercent second argument must be missing, a single digit, reference exactly 1 series or reference the same number of series as the first argument"):
             functions.asPercent({}, seriesList, seriesList2)
 
     def test_asPercent_no_seriesList2(self):
@@ -1312,7 +1312,7 @@ class FunctionsTest(TestCase):
         )
 
         message = r"divideSeries second argument must reference exactly 1 series \(got 2\)"
-        with self.assertRaisesRegexp(ValueError, message):
+        with self.assertRaisesRegex(ValueError, message):
             functions.divideSeries({}, seriesList, seriesList2)
 
     def test_divideSeries_seriesList2_single(self):
@@ -1796,6 +1796,10 @@ class FunctionsTest(TestCase):
 
         # verify against scaleToSeconds(nonNegativeDerivative(<series>, <maxValue>), 1)
         result = functions.scaleToSeconds({}, functions.nonNegativeDerivative({}, seriesList), 1)
+        self.assertEqual(list(expected[0]), list(result[0]))
+
+        # None values should not raise TypeError when maxValue is set
+        result = functions.perSecond({}, seriesList, maxValue=1000)
         self.assertEqual(list(expected[0]), list(result[0]))
 
     def test_perSecond_max(self):
@@ -2725,7 +2729,7 @@ class FunctionsTest(TestCase):
             tzinfo=pytz.utc
         )
         message = r"verticalLine\(\): timestamp 3600 exists before start of range"
-        with self.assertRaisesRegexp(ValueError, message):
+        with self.assertRaisesRegex(ValueError, message):
             _ = functions.verticalLine(requestContext, "01:0019700101", "foo")
 
     def test_vertical_line_after_end(self):
@@ -2735,7 +2739,7 @@ class FunctionsTest(TestCase):
             tzinfo=pytz.utc
         )
         message = r"verticalLine\(\): timestamp 31539600 exists after end of range"
-        with self.assertRaisesRegexp(ValueError, message):
+        with self.assertRaisesRegex(ValueError, message):
             _ = functions.verticalLine(requestContext, "01:0019710101", "foo")
 
     def test_line_width(self):
@@ -2780,7 +2784,7 @@ class FunctionsTest(TestCase):
                 continue
             # If the None values weren't transformed, there is a problem
             self.assertNotIn(None, results[counter],
-                             "tranformNull should remove all None values")
+                             "transformNull should remove all None values")
             # Anywhere a None was in the original series, verify it
             # was transformed to the given value it should be.
             for i, value in enumerate(series):
@@ -2828,7 +2832,7 @@ class FunctionsTest(TestCase):
                 continue
             # If the None values weren't transformed, there is a problem
             self.assertNotIn(None, results[counter],
-                             "tranformNull should remove all None values")
+                             "transformNull should remove all None values")
             # Anywhere a None was in the original series, verify it
             # was transformed to the given value if a value existed
             for i, value in enumerate(series):
@@ -3025,7 +3029,7 @@ class FunctionsTest(TestCase):
         with self.assertRaises(IndexError):
             verify_node_name(seriesList, None, 10000)
 
-        # Additiona tests
+        # Additional tests
         seriesList = []
         names = [
             "collectd.test-db1.load.value",
@@ -3113,7 +3117,7 @@ class FunctionsTest(TestCase):
         ]
         verify_groupByNode(expectedResult, 1, seriesList)
 
-        # Additiona tests
+        # Additional tests
         seriesList = []
         names = [
             "collectd.test-db1.load.value",
@@ -3823,7 +3827,7 @@ class FunctionsTest(TestCase):
             ]
         )
 
-        with self.assertRaisesRegexp(ValueError, '^Unsupported aggregation function: bad$'):
+        with self.assertRaisesRegex(ValueError, '^Invalid parameters \\(Unsupported aggregation function: bad\\)$'):
             functions.aggregateLine(
                 self._build_requestContext(
                     startTime=datetime(1970,1,1,1,0,0,0,pytz.timezone(settings.TIME_ZONE)),
@@ -4318,6 +4322,134 @@ class FunctionsTest(TestCase):
         result = functions.legendValue({}, seriesList, "avg", "bogus")
         self.assertEqual(result, expectedResult)
 
+    def test_upper_without_positions(self):
+        seriesList = self._gen_series_list_with_data(
+            key=['', 'a', 'normal.metric.name.with.normal.length', '!@#$%^&*()_+'],
+            start=0,
+            end=4,
+            data=[[], [], [], []],
+        )
+        expectedResult = [
+            TimeSeries('', 0, 4, 1, []),
+            TimeSeries('A', 0, 4, 1, []),
+            TimeSeries('NORMAL.METRIC.NAME.WITH.NORMAL.LENGTH', 0, 4, 1, []),
+            TimeSeries('!@#$%^&*()_+', 0, 4, 1, []),
+        ]
+        result = functions.toUpperCase({}, seriesList)
+        self.assertEqual(result, expectedResult)
+
+    def test_upper_with_one_position(self):
+        seriesList = self._gen_series_list_with_data(
+            key=[
+                '',
+                'normal.metric.name.with.normal.length',
+            ],
+            start=0,
+            end=4,
+            data=[[], [], [], []],
+        )
+
+        expectedResult = [
+            TimeSeries('', 0, 4, 1, []),
+            TimeSeries('normal.metRic.name.with.normal.length', 0, 4, 1, []),
+        ]
+        seriesList = functions.toUpperCase({}, seriesList, 10)
+        self.assertEqual(seriesList, expectedResult)
+
+        expectedResult[1].name = 'Normal.metRic.name.with.normal.length'
+        seriesList = functions.toUpperCase({}, seriesList, 0)
+        self.assertEqual(seriesList, expectedResult)
+
+        expectedResult[1].name = 'Normal.metRic.name.with.normal.lengtH'
+        seriesList = functions.toUpperCase({}, seriesList, -1)
+        self.assertEqual(seriesList, expectedResult)
+
+        expectedResult[1].name = 'Normal.metRic.name.with.normal.lengtH'
+        seriesList = functions.toUpperCase({}, seriesList, 1000)
+        self.assertEqual(seriesList, expectedResult)
+
+    def test_upper_with_multiple_positions(self):
+        seriesList = self._gen_series_list_with_data(
+            key=[
+                '',
+                'normal.metric.name.with.normal.length',
+            ],
+            start=0,
+            end=4,
+            data=[[], [], [], []],
+        )
+
+        expectedResult = [
+            TimeSeries('', 0, 4, 1, []),
+            TimeSeries('Normal.metric.nAme.with.normal.lenGtH', 0, 4, 1, []),
+        ]
+        seriesList = functions.toUpperCase({}, seriesList, 0, 15, 100, -3, -1, -1000)
+        self.assertEqual(seriesList, expectedResult)
+
+    def test_lower_without_positions(self):
+        seriesList = self._gen_series_list_with_data(
+            key=['', 'A', 'NORMAL.METRIC.NAME.WITH.NORMAL.LENGTH', '!@#$%^&*()_+'],
+            start=0,
+            end=4,
+            data=[[], [], [], []],
+        )
+        expectedResult = [
+            TimeSeries('', 0, 4, 1, []),
+            TimeSeries('a', 0, 4, 1, []),
+            TimeSeries('normal.metric.name.with.normal.length', 0, 4, 1, []),
+            TimeSeries('!@#$%^&*()_+', 0, 4, 1, []),
+        ]
+        result = functions.toLowerCase({}, seriesList)
+        self.assertEqual(result, expectedResult)
+
+    def test_lower_with_one_position(self):
+        seriesList = self._gen_series_list_with_data(
+            key=[
+                '',
+                'NORMAL.METRIC.NAME.WITH.NORMAL.LENGTH',
+            ],
+            start=0,
+            end=4,
+            data=[[], [], [], []],
+        )
+
+        expectedResult = [
+            TimeSeries('', 0, 4, 1, []),
+            TimeSeries('NORMAL.METrIC.NAME.WITH.NORMAL.LENGTH', 0, 4, 1, []),
+        ]
+        seriesList = functions.toLowerCase({}, seriesList, 10)
+        self.assertEqual(seriesList, expectedResult)
+
+        expectedResult[1].name = 'nORMAL.METrIC.NAME.WITH.NORMAL.LENGTH'
+        seriesList = functions.toLowerCase({}, seriesList, 0)
+        self.assertEqual(seriesList, expectedResult)
+
+        expectedResult[1].name = 'nORMAL.METrIC.NAME.WITH.NORMAL.LENGTh'
+        seriesList = functions.toLowerCase({}, seriesList, -1)
+        self.assertEqual(seriesList, expectedResult)
+
+        expectedResult[1].name = 'nORMAL.METrIC.NAME.WITH.NORMAL.LENGTh'
+        seriesList = functions.toLowerCase({}, seriesList, 1000)
+        self.assertEqual(seriesList, expectedResult)
+
+    def test_lower_with_multiple_positions(self):
+        seriesList = self._gen_series_list_with_data(
+            key=[
+                '',
+                'NORMAL.METRIC.NAME.WITH.NORMAL.LENGTH',
+            ],
+            start=0,
+            end=4,
+            data=[[], [], [], []],
+        )
+
+        expectedResult = [
+            TimeSeries('', 0, 4, 1, []),
+            TimeSeries('nORMAL.METRIC.NaME.WITH.NORMAL.LENgTh', 0, 4, 1, []),
+        ]
+        seriesList = functions.toLowerCase({}, seriesList, 0, 15, 100, -3, -1, -1000)
+        self.assertEqual(seriesList, expectedResult)
+
     @patch('graphite.render.evaluator.prefetchData', lambda *_: None)
     def test_linearRegression(self):
         seriesList = self._gen_series_list_with_data(
@@ -4395,6 +4527,38 @@ class FunctionsTest(TestCase):
         self.assertEqual(result, expectedResults)
 
     @patch('graphite.render.evaluator.prefetchData', lambda *_: None)
+    def test_applyByNode_Overflow(self):
+        seriesList = self._gen_series_list_with_data(
+            key=['servers.s1.disk.bytes_used', 'servers.s1.disk.bytes_free','servers.s2.disk.bytes_used','servers.s2.disk.bytes_free'],
+            start=0,
+            end=3,
+            data=[[10, 20, 30], [90, 80, 70], [1, 2, 3], [99, 98, 97]]
+        )
+
+        def mock_data_fetcher(reqCtx, path_expression):
+            rv = []
+            for s in seriesList:
+                if s.name == path_expression or fnmatch(s.name, path_expression):
+                    rv.append(s)
+            if rv:
+                return rv
+            raise KeyError('{} not found!'.format(path_expression))
+
+        with patch('graphite.render.evaluator.fetchData', mock_data_fetcher):
+            try:
+                functions.applyByNode(
+                    self._build_requestContext(
+                        startTime=datetime(1970, 1, 1, 0, 0, 0, 0, pytz.timezone(settings.TIME_ZONE)),
+                        endTime=datetime(1970, 1, 1, 0, 9, 0, 0, pytz.timezone(settings.TIME_ZONE))
+                    ),
+                    seriesList, 4,
+                    'divideSeries(%.disk.bytes_used, sumSeries(%.disk.bytes_*))'
+                )
+                self.fail('must raise with InputParameterError')
+            except InputParameterError:
+                pass
+
+    @patch('graphite.render.evaluator.prefetchData', lambda *_: None)
     def test_applyByNode_newName(self):
         seriesList = self._gen_series_list_with_data(
             key=['servers.s1.disk.bytes_used', 'servers.s1.disk.bytes_free','servers.s2.disk.bytes_used','servers.s2.disk.bytes_free'],
@@ -4451,7 +4615,7 @@ class FunctionsTest(TestCase):
             )
 
         with patch('graphite.render.functions.evaluateTarget', mock_evaluateTarget):
-            with self.assertRaisesRegexp(ValueError, '^Unsupported aggregation function: invalid$'):
+            with self.assertRaisesRegex(ValueError, '^Invalid parameters \\(Unsupported aggregation function: invalid\\)$'):
                 functions.movingWindow(request_context, seriesList, 5, 'invalid')
 
     def test_movingWindow_xFilesFactor(self):
@@ -4471,7 +4635,7 @@ class FunctionsTest(TestCase):
             )
 
         expectedResults = [
-            TimeSeries('movingAverage(collectd.test-db0.load.value,10)', 20, 30, 1, [None, None, None, None, None, 2.0, 2.5, 3.0, 3.5, 4.0])
+            TimeSeries('movingAverage(collectd.test-db0.load.value,10)', 20, 30, 1, [None, None, None, None, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5])
         ]
 
         with patch('graphite.render.functions.evaluateTarget', mock_evaluateTarget):
@@ -4535,7 +4699,7 @@ class FunctionsTest(TestCase):
             )
 
         expectedResults = [
-            TimeSeries('movingMedian(collectd.test-db0.load.value,10)', 20, 30, 1, [None, 0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4])
+            TimeSeries('movingMedian(collectd.test-db0.load.value,10)', 20, 30, 1, [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5])
         ]
 
         with patch('graphite.render.functions.evaluateTarget', mock_evaluateTarget):
@@ -4589,7 +4753,7 @@ class FunctionsTest(TestCase):
             )
 
         expectedResults = [
-            TimeSeries('movingMedian(collectd.test-db0.load.value,60)', 660, 700, 1, [x - 0.5 for x in range(30, 70)]),
+            TimeSeries('movingMedian(collectd.test-db0.load.value,60)', 660, 700, 1, [x + 0.5 for x in range(30, 70)]),
         ]
 
         with patch('graphite.render.functions.evaluateTarget', mock_evaluateTarget):
@@ -4620,7 +4784,7 @@ class FunctionsTest(TestCase):
             )
 
         expectedResults = [
-            TimeSeries('movingMedian(collectd.test-db0.load.value,"-1min")', 660, 700, 1, [x - 0.5 for x in range(30, 70)]),
+            TimeSeries('movingMedian(collectd.test-db0.load.value,"-1min")', 660, 700, 1, [x + 0.5 for x in range(30, 70)]),
         ]
 
         with patch('graphite.render.functions.evaluateTarget', mock_evaluateTarget):
@@ -4684,7 +4848,7 @@ class FunctionsTest(TestCase):
             )
 
         expectedResults = [
-            TimeSeries('movingAverage(collectd.test-db0.load.value,10)', 20, 30, 1, [None, 0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0])
+            TimeSeries('movingAverage(collectd.test-db0.load.value,10)', 20, 30, 1, [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5])
         ]
 
         with patch('graphite.render.functions.evaluateTarget', mock_evaluateTarget):
@@ -4742,7 +4906,7 @@ class FunctionsTest(TestCase):
                 yield x
                 x+=jump
         expectedResults = [
-            TimeSeries('movingAverage(collectd.test-db0.load.value,60)', 660, 700, 1, frange(29.5, 69.5, 1)),
+            TimeSeries('movingAverage(collectd.test-db0.load.value,60)', 660, 700, 1, frange(30.5, 70.5, 1)),
         ]
 
         with patch('graphite.render.functions.evaluateTarget', mock_evaluateTarget):
@@ -4753,6 +4917,7 @@ class FunctionsTest(TestCase):
                 ),
                 seriesList, 60
             )
+        self.assertEqual(list(result[0]), list(expectedResults[0]))
         self.assertEqual(result, expectedResults)
 
     def test_movingAverage_stringWindowSize(self):
@@ -4777,7 +4942,7 @@ class FunctionsTest(TestCase):
                 x+=jump
 
         expectedResults = [
-            TimeSeries('movingAverage(collectd.test-db0.load.value,"-1min")', 660, 700, 1, frange(29.5, 69.5, 1)),
+            TimeSeries('movingAverage(collectd.test-db0.load.value,"-1min")', 660, 700, 1, frange(30.5, 70.5, 1)),
         ]
 
         with patch('graphite.render.functions.evaluateTarget', mock_evaluateTarget):
@@ -4788,6 +4953,7 @@ class FunctionsTest(TestCase):
                 ),
                 seriesList, "-1min"
             )
+        self.assertEqual(list(result[0]), list(expectedResults[0]))
         self.assertEqual(result, expectedResults)
 
     def test_movingMin_emptySeriesList(self):
@@ -4842,7 +5008,7 @@ class FunctionsTest(TestCase):
             return seriesList
 
         expectedResults = [
-            TimeSeries('movingMin(collectd.test-db0.load.value,10)', 20, 30, 1, [None, 2, 1, 1, 1, 1, 1, 1, 1, 1] )
+            TimeSeries('movingMin(collectd.test-db0.load.value,10)', 20, 30, 1, [2, 1, 1, 1, 1, 1, 1, 1, 1, 1] )
         ]
 
         with patch('graphite.render.functions.evaluateTarget', mock_evaluateTarget):
@@ -4853,6 +5019,7 @@ class FunctionsTest(TestCase):
                 ),
                 seriesList, 10
             )
+        self.assertEqual(list(result[0]), list(expectedResults[0]))
         self.assertEqual(result, expectedResults)
 
     def test_movingMin_evaluateTarget_returns_empty_list(self):
@@ -4895,7 +5062,7 @@ class FunctionsTest(TestCase):
             )
 
         expectedResults = [
-            TimeSeries('movingMin(collectd.test-db0.load.value,10)', 20, 30, 1, [None, 10] + [1] * 8)
+            TimeSeries('movingMin(collectd.test-db0.load.value,10)', 20, 30, 1, [10] + [1] * 9)
         ]
 
         with patch('graphite.render.functions.evaluateTarget', mock_evaluateTarget):
@@ -4906,6 +5073,7 @@ class FunctionsTest(TestCase):
                 ),
                 seriesList, 10
             )
+        self.assertEqual(list(result[0]), list(expectedResults[0]))
         self.assertEqual(result, expectedResults)
 
     def test_movingMin_stringWindowSize(self):
@@ -4990,7 +5158,7 @@ class FunctionsTest(TestCase):
             return seriesList
 
         expectedResults = [
-            TimeSeries('movingMax(collectd.test-db0.load.value,10)', 20, 30, 1, [None, 1, 2, 2, 2, 2, 2, 2, 2, 2])
+            TimeSeries('movingMax(collectd.test-db0.load.value,10)', 20, 30, 1, [1, 2, 2, 2, 2, 2, 2, 2, 2, 2])
         ]
 
         with patch('graphite.render.functions.evaluateTarget', mock_evaluateTarget):
@@ -5001,6 +5169,7 @@ class FunctionsTest(TestCase):
                 ),
                 seriesList, 10
             )
+        self.assertEqual(list(result[0]), list(expectedResults[0]))
         self.assertEqual(result, expectedResults)
 
     def test_movingMax_evaluateTarget_returns_empty_list(self):
@@ -5043,7 +5212,7 @@ class FunctionsTest(TestCase):
             )
 
         expectedResults = [
-            TimeSeries('movingMax(collectd.test-db0.load.value,10)', 20, 30, 1, [None, 1, 2, 2, 2, 2, 2, 2, 2, 2])
+            TimeSeries('movingMax(collectd.test-db0.load.value,10)', 20, 30, 1, [1, 2, 2, 2, 2, 2, 2, 2, 2, 2])
         ]
 
         with patch('graphite.render.functions.evaluateTarget', mock_evaluateTarget):
@@ -5054,6 +5223,7 @@ class FunctionsTest(TestCase):
                 ),
                 seriesList, 10
             )
+        self.assertEqual(list(result[0]), list(expectedResults[0]))
         self.assertEqual(result, expectedResults)
 
     def test_movingMax_stringWindowSize(self):
@@ -5151,7 +5321,7 @@ class FunctionsTest(TestCase):
             return seriesList
 
         expectedResults = [
-            TimeSeries('movingSum(collectd.test-db0.load.value,10)', 20, 30, 1, [None, 0.0, 1.0, 3.0, 6.0, 10.0, 15.0, 21.0, 28.0, 36.0])
+            TimeSeries('movingSum(collectd.test-db0.load.value,10)', 20, 30, 1, [0.0, 1.0, 3.0, 6.0, 10.0, 15.0, 21.0, 28.0, 36.0, 45.0])
         ]
 
         with patch('graphite.render.functions.evaluateTarget', mock_evaluateTarget):
@@ -5162,6 +5332,7 @@ class FunctionsTest(TestCase):
                 ),
                 seriesList, 10
             )
+        self.assertEqual(list(result[0]), list(expectedResults[0]))
         self.assertEqual(result, expectedResults)
 
     def test_movingSum_evaluateTarget_returns_empty_list(self):
@@ -5789,6 +5960,54 @@ class FunctionsTest(TestCase):
             )
         self.assertEqual(result, expectedResults)
 
+    def test_compressPeriodicGaps(self):
+        self.maxDiff = None
+        seriesList = self._gen_series_list_with_data(
+            key=['collectd.test-db0.load.value', 'collectd.test-db1.load.value', 'collectd.test-db2.load.value',
+                 'collectd.test-db3.load.value', 'collectd.test-db4.load.value', 'collectd.test-db5.load.value',
+                 'collectd.test-db6.load.value', 'collectd.test-db7.load.value'],
+            start=100,
+            end=250,
+            step=10,
+            data=[
+                # step = 3x, leading None -> should be properly compressed
+                [None, 1, None, None, 2, None, None, 3, None, None, 4, None, None, 5, None, None],
+                # step = 3x, leading 2 Nones -> should be properly compressed
+                [None, None, 1, None, None, 2, None, None, 3, None, None, 4, None, None, 5, None],
+                # step = 3x, no leading Nones -> should be properly compressed
+                # but please note that summarize() cuts last value
+                [1, None, None, 2, None, None, 3, None, None, 4, None, None, 5, None, None, 6],
+                # normal series, some leading/trailing Nones -> should be not touched
+                [None, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, None, None],
+                # normal series, without Nones -> should be not touched
+                [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+                # step = 2x, leading None -> should be properly compressed
+                # it cuts last value - but that how summarize(last) works here, let's live with it
+                [None, 1, None, 3, None, 5, None, 7, None, 9, None, 11, None, 13, None, 15],
+                # non regular gaps series -> should be not touched
+                [None, 1, 2, 3, None, 5, None, 7, None, 9, None, None, None, 13, None, None],
+                # non regular gaps series -> should be not touched
+                [1, 2, 3, None, None, None, None, None, None, None, None, None, 13, 14, 15],
+            ]
+        )
+
+        expectedResults = [
+            TimeSeries('compressPeriodicGaps(collectd.test-db0.load.value)', 110, 230, 30, [1, 2, 3, 4, 5]),
+            TimeSeries('compressPeriodicGaps(collectd.test-db1.load.value)', 120, 240, 30, [1, 2, 3, 4, 5]),
+            TimeSeries('compressPeriodicGaps(collectd.test-db2.load.value)', 100, 220, 30, [1, 2, 3, 4, 5]),
+            TimeSeries('compressPeriodicGaps(collectd.test-db3.load.value)', 100, 250, 10, [None, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, None, None]),
+            TimeSeries('compressPeriodicGaps(collectd.test-db4.load.value)', 100, 250, 10, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]),
+            TimeSeries('compressPeriodicGaps(collectd.test-db5.load.value)', 110, 230, 20, [1, 3, 5, 7, 9, 11, 13]),
+            TimeSeries('compressPeriodicGaps(collectd.test-db6.load.value)', 100, 250, 10, [None, 1, 2, 3, None, 5, None, 7, None, 9, None, None, None, 13, None, None]),
+            TimeSeries('compressPeriodicGaps(collectd.test-db7.load.value)', 100, 250, 10, [1, 2, 3, None, None, None, None, None, None, None, None, None, 13, 14, 15]),
+        ]
+
+        result = functions.compressPeriodicGaps(
+            self._build_requestContext(),
+            seriesList
+        )
+        self.assertEqual(result, expectedResults)
+
     def test_summarize_1minute(self):
         seriesList = self._gen_series_list_with_data(
             key=['servers.s1.disk.bytes_used', 'servers.s1.disk.bytes_free', 'servers.s2.disk.bytes_used', 'servers.s2.disk.bytes_free'],
@@ -6240,7 +6459,7 @@ class FunctionsTest(TestCase):
             self.assertEqual(result, [])
 
         with patch('graphite.storage.STORE.tagdb', MockTagDB()):
-            with self.assertRaisesRegexp(ValueError, 'groupByTags\\(\\): no tags specified'):
+            with self.assertRaisesRegex(ValueError, 'groupByTags\\(\\): no tags specified'):
                 functions.groupByTags({}, [], 'sum')
 
             result = functions.groupByTags({}, seriesList, 'sum', 'server')

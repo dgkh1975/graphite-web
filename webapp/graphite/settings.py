@@ -24,7 +24,7 @@ from django import VERSION as DJANGO_VERSION
 try:
     from django.urls import reverse_lazy
 except ImportError:  # Django < 1.10
-    from django.core.urlresolvers import reverse_lazy
+    from django.urls import reverse_lazy
 
 
 GRAPHITE_WEB_APP_SETTINGS_LOADED = False
@@ -101,13 +101,14 @@ FIND_TOLERANCE = 2 * FIND_CACHE_DURATION
 DEFAULT_CACHE_DURATION = 60 #metric data and graphs are cached for one minute by default
 DEFAULT_CACHE_POLICY = []
 
-# this setting controls the default xFilesFactor used for query-time aggregration
+# this setting controls the default xFilesFactor used for query-time aggregation
 DEFAULT_XFILES_FACTOR = 0
 
 # These can also be configured using:
 # https://docs.djangoproject.com/en/1.11/topics/logging/
 LOG_RENDERING_PERFORMANCE = False
 LOG_CACHE_PERFORMANCE = False
+LOG_INFO_PERFORMANCE = True
 LOG_ROTATION = True
 LOG_ROTATION_COUNT = 1
 
@@ -129,6 +130,10 @@ RENDER_TRIM_RECENT_IN_AGGREGATE = False #if True, set most recent datapoints to 
 REMOTE_RENDERING = False #if True, rendering is delegated to RENDERING_HOSTS
 RENDERING_HOSTS = []
 REMOTE_RENDER_CONNECT_TIMEOUT = 1.0
+
+# Function settings
+# automatically removing gaps from arguments of derivative functions
+AUTOCOMPRESS_GAPS_IN_DERIVATIVE_FUNCTIONS = False #experimental, do not enable
 
 #Miscellaneous settings
 DOCUMENTATION_VERSION = 'latest' if 'dev' in WEBAPP_VERSION else WEBAPP_VERSION
@@ -161,7 +166,7 @@ TAGDB_HTTP_AUTOCOMPLETE = False
 # Function plugins
 FUNCTION_PLUGINS = []
 
-
+DEFAULT_AUTO_FIELD='django.db.models.AutoField'
 MIDDLEWARE = ()
 if DJANGO_VERSION < (1, 10):
     MIDDLEWARE_CLASSES = MIDDLEWARE
@@ -318,7 +323,7 @@ if 'sqlite3' in DATABASES.get('default',{}).get('ENGINE','') \
 # Caching shortcuts
 if MEMCACHE_HOSTS:
     CACHES['default'] = {
-        'BACKEND': 'django.core.cache.backends.memcached.MemcachedCache',
+        'BACKEND': 'django.core.cache.backends.memcached.PyMemcacheCache',
         'LOCATION': MEMCACHE_HOSTS,
         'TIMEOUT': DEFAULT_CACHE_DURATION,
         'KEY_PREFIX': MEMCACHE_KEY_PREFIX,

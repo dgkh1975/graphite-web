@@ -151,6 +151,41 @@ def trimRecent(seriesList):
   return (seriesList)
 
 
+def _compressPeriodicGaps(series):
+  # removing periodic gaps, using summarize(seriesList, '<desired step>', 'last')
+  # but trying to auto detect step by first three existing values
+  consolidate = series.consolidationFunc
+  tags = series.tags
+  xFilesFactor = series.xFilesFactor
+  pathExpression = series.pathExpression
+  # try to detect interval
+  firstSeen = -1
+  secondSeen = -1
+  interval = None
+  for i, value in enumerate(series):
+    if value:
+      if firstSeen >= 0:
+        secondSeen = i
+        break
+      else:
+        firstSeen = i
+  stepGuess = secondSeen - firstSeen
+  thirdSeen = secondSeen + stepGuess
+  if stepGuess > 1 and thirdSeen <= len(series) - 2:  # protecting list boundaries
+    if series[thirdSeen]:  # if we predict value
+      if series[thirdSeen - 1] is None and series[thirdSeen + 1] is None:  # ..and it surrounded by Nones
+        interval = stepGuess * series.step   # we probably guessed interval.
+  if interval is None:
+    # we couldn't detect interval, just return untouched series
+    return series
+
+  newStart = series.start + firstSeen * series.step  # skipping initial Nones
+  (newValues, _) = _summarizeValues(series, 'last', interval, newStart, series.end)
+  newEnd = newStart + interval * (len(newValues) - 1)  # calculating new end from summarized values
+  return TimeSeries(series.name, newStart, newEnd, interval, newValues,
+                    consolidate=consolidate, tags=tags, xFilesFactor=xFilesFactor, pathExpression=pathExpression)
+
+
 def formatPathExpressions(seriesList):
   # remove duplicates
   pathExpressions = []
@@ -864,7 +899,7 @@ def asPercent(requestContext, seriesList, total=None, *nodes):
     # For each server, its connections failed as a percentage of its connections attempted
     &target=asPercent(Server*.connections.failed, Server*.connections.attempted)
 
-    # For each server, its connections failed and succeeded as a percentage of its connections attemped
+    # For each server, its connections failed and succeeded as a percentage of its connections attempted
     &target=asPercent(Server*.connections.{failed,succeeded}, Server*.connections.attempted, 0)
 
     # apache01.threads.busy as a percentage of 1500
@@ -1262,7 +1297,7 @@ def movingWindow(requestContext, seriesList, windowSize, func='average', xFilesF
   until`` in the :doc:`Render API <render_api>` for examples of time formats), a function to apply to the points
   in the window to produce the output, and an xFilesFactor value to specify how many points in the
   window must be non-null for the output to be considered valid. Graphs the
-  output of the function for the preceeding datapoints for each point on the graph.
+  output of the function for the preceding datapoints for each point on the graph.
 
   Example:
 
@@ -1312,7 +1347,7 @@ def movingWindow(requestContext, seriesList, windowSize, func='average', xFilesF
 
     effectiveXFF = xFilesFactor if xFilesFactor is not None else series.xFilesFactor
 
-    for i in range(windowPoints, len(series)):
+    for i in range(windowPoints + 1, len(series) + 1):
       nonNull = [v for v in series[i - windowPoints:i] if v is not None]
 
       if nonNull and xff(len(nonNull), windowPoints, effectiveXFF):
@@ -1425,7 +1460,7 @@ def movingMedian(requestContext, seriesList, windowSize, xFilesFactor=None):
   or a quoted string with a length of time like '1hour' or '5min' (See ``from /
   until`` in the :doc:`Render API <render_api>` for examples of time formats), and an xFilesFactor value to specify
   how many points in the window must be non-null for the output to be considered valid. Graphs the
-  median of the preceeding datapoints for each point on the graph.
+  median of the preceding datapoints for each point on the graph.
 
   Example:
 
@@ -1902,7 +1937,7 @@ def movingAverage(requestContext, seriesList, windowSize, xFilesFactor=None):
   or a quoted string with a length of time like '1hour' or '5min' (See ``from /
   until`` in the :doc:`Render API <render_api>` for examples of time formats), and an xFilesFactor value to specify
   how many points in the window must be non-null for the output to be considered valid. Graphs the
-  average of the preceeding datapoints for each point on the graph.
+  average of the preceding datapoints for each point on the graph.
 
   Example:
 
@@ -1932,7 +1967,7 @@ def movingSum(requestContext, seriesList, windowSize, xFilesFactor=None):
   or a quoted string with a length of time like '1hour' or '5min' (See ``from /
   until`` in the :doc:`Render API <render_api>` for examples of time formats), and an xFilesFactor value to specify
   how many points in the window must be non-null for the output to be considered valid. Graphs the
-  sum of the preceeding datapoints for each point on the graph.
+  sum of the preceding datapoints for each point on the graph.
 
   Example:
 
@@ -1962,7 +1997,7 @@ def movingMin(requestContext, seriesList, windowSize, xFilesFactor=None):
   or a quoted string with a length of time like '1hour' or '5min' (See ``from /
   until`` in the :doc:`Render API <render_api>` for examples of time formats), and an xFilesFactor value to specify
   how many points in the window must be non-null for the output to be considered valid. Graphs the
-  minimum of the preceeding datapoints for each point on the graph.
+  minimum of the preceding datapoints for each point on the graph.
 
   Example:
 
@@ -1992,7 +2027,7 @@ def movingMax(requestContext, seriesList, windowSize, xFilesFactor=None):
   or a quoted string with a length of time like '1hour' or '5min' (See ``from /
   until`` in the :doc:`Render API <render_api>` for examples of time formats), and an xFilesFactor value to specify
   how many points in the window must be non-null for the output to be considered valid. Graphs the
-  maximum of the preceeding datapoints for each point on the graph.
+  maximum of the preceding datapoints for each point on the graph.
 
   Example:
 
@@ -2139,6 +2174,8 @@ def derivative(requestContext, seriesList):
   """
   results = []
   for series in seriesList:
+    if settings.AUTOCOMPRESS_GAPS_IN_DERIVATIVE_FUNCTIONS:
+      series = _compressPeriodicGaps(series)
     newValues = []
     prev = None
     for val in series:
@@ -2183,6 +2220,8 @@ def perSecond(requestContext, seriesList, maxValue=None, minValue=None):
   """
   results = []
   for series in seriesList:
+    if settings.AUTOCOMPRESS_GAPS_IN_DERIVATIVE_FUNCTIONS:
+      series = _compressPeriodicGaps(series)
     newValues = []
     prev = None
     step = series.step
@@ -2294,7 +2333,7 @@ integral.params = [
 
 def integralByInterval(requestContext, seriesList, intervalUnit):
   """
-  This will do the same as integral() funcion, except resetting the total to 0
+  This will do the same as integral() function, except resetting the total to 0
   at the given time in the parameter "from"
   Useful for finding totals per hour/day/week/..
 
@@ -2361,6 +2400,8 @@ def nonNegativeDerivative(requestContext, seriesList, maxValue=None, minValue=No
   results = []
 
   for series in seriesList:
+    if settings.AUTOCOMPRESS_GAPS_IN_DERIVATIVE_FUNCTIONS:
+      series = _compressPeriodicGaps(series)
     newValues = []
     prev = None
 
@@ -2386,6 +2427,9 @@ nonNegativeDerivative.params = [
 
 
 def _nonNegativeDelta(val, prev, maxValue, minValue):
+  if val is None:
+    return None, None
+
   # ignore values larger than maxValue
   if maxValue is not None and val > maxValue:
     return None, None
@@ -2393,7 +2437,7 @@ def _nonNegativeDelta(val, prev, maxValue, minValue):
     return None, None
 
   # first reading
-  if None in (prev, val):
+  if prev is None:
     return None, val
 
   # counter increased, use the difference
@@ -2786,6 +2830,74 @@ legendValue.group = 'Alias'
 legendValue.params = [
   Param('seriesList', ParamTypes.seriesList, required=True),
   Param('valuesTypes', ParamTypes.string, multiple=True, options=ParamTypeAggFunc.getAllValidAggFuncs() + ['si', 'binary']),
+]
+
+
+def toUpperCase(requestContext, seriesList, *pos):
+  """
+  Takes one metric or a wildcard seriesList and uppers the case of each letter.
+
+  Optionally, a letter position to upper case can be specified, in which case
+  only the letter at the specified position gets upper-cased.
+  The position parameter may be given multiple times.
+  The position parameter may be negative to define a position relative to the
+  end of the metric name.
+  """
+
+  for series in seriesList:
+    if len(pos) == 0:
+      series.name = series.name.upper()
+    else:
+      tmpName = list(series.name)
+      for i in pos:
+        assert isinstance(i, int)
+        try:
+          tmpName[i] = tmpName[i].upper()
+        except IndexError:
+          pass
+      series.name = "".join(tmpName)
+
+  return seriesList
+
+
+toUpperCase.group = 'Alias'
+toUpperCase.params = [
+  Param('seriesList', ParamTypes.seriesList, required=True),
+  Param('pos', ParamTypes.integer, multiple=True)
+]
+
+
+def toLowerCase(requestContext, seriesList, *pos):
+  """
+  Takes one metric or a wildcard seriesList and lowers the case of each letter.
+
+  Optionally, a letter position to lower case can be specified, in which case
+  only the letter at the specified position gets lower-cased.
+  The position parameter may be given multiple times.
+  The position parameter may be negative to define a position relative to the
+  end of the metric name.
+  """
+
+  for series in seriesList:
+    if len(pos) == 0:
+      series.name = series.name.lower()
+    else:
+      tmpName = list(series.name)
+      for i in pos:
+        assert isinstance(i, int)
+        try:
+          tmpName[i] = tmpName[i].lower()
+        except IndexError:
+          pass
+      series.name = "".join(tmpName)
+
+  return seriesList
+
+
+toLowerCase.group = 'Alias'
+toLowerCase.params = [
+  Param('seriesList', ParamTypes.seriesList, required=True),
+  Param('pos', ParamTypes.integer, multiple=True)
 ]
 
 
@@ -3694,8 +3806,11 @@ def useSeriesAbove(requestContext, seriesList, value, search, replace):
 
   for series in seriesList:
     newname = re.sub(search, replace, series.name)
-    if max(series) > value:
-      newNames.append(newname)
+    try:
+      if max(series) > value:
+        newNames.append(newname)
+    except TypeError:
+        continue
 
   if not newNames:
     return []
@@ -3893,9 +4008,11 @@ def holtWintersDeviation(gamma,actual,prediction,last_seasonal_dev):
 def holtWintersAnalysis(series, seasonality='1d'):
   alpha = gamma = 0.1
   beta = 0.0035
-  # season is currently one day
   seasonality_time = parseTimeOffset(seasonality)
   season_length = (seasonality_time.seconds + (seasonality_time.days * 86400)) // series.step
+  # season_length should be 2 or more
+  if season_length < 2:
+    season_length = 2
   intercept = 0
   slope = 0
   intercepts = list()
@@ -4991,7 +5108,10 @@ def applyByNode(requestContext, seriesList, nodeNum, templateFunction, newName=N
   """
   prefixes = set()
   for series in seriesList:
-    prefix = '.'.join(series.name.split('.')[:nodeNum + 1])
+    nodes = series.name.split('.')
+    if nodeNum >= len(nodes):
+        raise InputParameterError("{} do not contains {} nodes".format(series.name, nodeNum))
+    prefix = '.'.join(nodes[:nodeNum + 1])
     prefixes.add(prefix)
   results = []
   newContext = requestContext.copy()
@@ -5282,6 +5402,9 @@ summarize.params = [
 
 
 def _summarizeValues(series, func, interval, newStart=None, newEnd=None):
+  if interval == 0:
+    raise InputParameterError("_summarizeValues(): interval parsed to 0")
+
   if newStart is None:
     newStart = series.start
   if newEnd is None:
@@ -5797,6 +5920,35 @@ minMax.params = [
 ]
 
 
+def compressPeriodicGaps(requestContext, seriesList):
+  """
+  Tries to intelligently remove periodic None's from series, recalculating start, stop and step values.
+  You can use `summarize(seriesList, '<desired step>', 'last')` function for that also, but this function trying to
+  guess desired step automatically. Can be used in case of fix metric with improper resolution.
+  Especially useful for derivative functions, which are not working with series with regular gaps.
+
+  Example:
+
+  .. code-block:: none
+
+    &target=compressPeriodicGaps(Server.instance01.threads.busy)
+  """
+
+  resultList = []
+  for series in seriesList:
+    series.name = "compressPeriodicGaps(%s)" % series.name
+    series.pathExpression = series.name
+    resultList.append(_compressPeriodicGaps(series))
+
+  return resultList
+
+
+compressPeriodicGaps.group = 'Transform'
+compressPeriodicGaps.params = [
+  Param('seriesList', ParamTypes.seriesList, required=True),
+]
+
+
 def pieAverage(requestContext, series):
   """Return the average"""
   return safe.safeDiv(safe.safeSum(series), safe.safeLen(series))
@@ -5877,6 +6029,7 @@ SeriesFunctions = {
   # Transform functions
   'add': add,
   'absolute': absolute,
+  'compressPeriodicGaps': compressPeriodicGaps,
   'delay': delay,
   'derivative': derivative,
   'exp': exp,
@@ -5972,6 +6125,8 @@ SeriesFunctions = {
   'aliasQuery': aliasQuery,
   'aliasSub': aliasSub,
   'legendValue': legendValue,
+  'upper': toUpperCase,
+  'lower': toLowerCase,
 
   # Graph functions
   'alpha': alpha,

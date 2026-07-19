@@ -1,5 +1,38 @@
 # 1.2.0 (master/unreleased)
 
+* Nothing yet
+# 1.1.10
+## graphite-web
+### Bug Fixes
+* Replace another missed instance of Infinity in JSON (#2737, @bobemoe) 
+* Fix pyparsing > 3.0 compatibility issue. (#2727, @parrotpock) 
+* Fix dependency issue for usage as Grafana data source (#2722, @henkf)
+* backporting "html-encode text passed to Ext.Msg" (#2719, @DanCech)
+* Depend on third-party scandir only for Python < 3.5 (#2706, @neirbowj)
+* fix shifting of moving* datapoints by one step into the future (#2682, @zivillian)
+
+### Features / Enhancements
+* maxStep in requestContext for Finder (#2724, @deniszh) 
+* compressPeriodicGaps function (#2720, @deniszh)
+* Implement upper lower case functions (#2586, @replay)
+
+## carbon
+### Bug Fixes
+* Fixing git url in tests (#933, @deniszh)
+* Don't use git protocol for dependency (#929, @tomdcc)
+
+## whisper
+### Features / Enhancements
+* whisper-update takes values from stdin (#318, @rowlap)
+
+## carbonate
+### Bug Fixes
+* Refactor log lines to use native interpolation (#129, @drawks)
+* Resolves issue #127 - python3 safe stdout handling (#128, @drawks)
+* Changed mutable default argument in test_fill.py and test_sync.py (#126, @aastha12) 
+
+# 1.1.8
+
 ## graphite-web
 
 ### Bug Fixes
@@ -14,7 +47,7 @@
  - asPercent may be used as an aggregator (#2594, @replay)
  - Make nodes in group by nodes optional (#2597, @replay)
  - privatize linearRegressionAnalysis so it will not show in documentation (#2602, @piotr1212)
- - Revert symlink fix (#2604, @piotrt1212)
+ - Revert symlink fix (#2604, @piotr1212)
  - Lock whitenoise dependency version (#2606, @Carles-Figuerola)
  - Prevent xss (#2620, @StephenDsouza90)
  - fix & improve docs for *WithWildcards functions (#2625, @Dieterbe)
@@ -22,11 +55,14 @@
  - Patch /static/ directory in Apache docs (#2635, @djmetzle)
  - Backport unicode fix from piotr1212/graphite-web@17e23ef (#2643, @piotr1212 / @deniszh)
  - Update whisper.rst with Python 3 fix (#2649, @cdeil)
- - utf-8 fix in unpickle (#2660, @piotr1212 / @ploxlin)
+ - utf-8 fix in unpickle (#2660, @piotr1212 / @ploxiln)
  - Fix expand braces (#2661, Aleksandr Cupacenko / @deniszh )
  - Fix paths not matching description (@thedoc31)
+ - Amend web install docs (#2677, @deniszh)
+ - Resolves #2692 can't unpickle Interval/IntervalSet (#2693, @drawks)
 
 ### Features / Enhancements
+ - Better logs on invalid input (#2590, @replay)
  - [Settings] Allow pickle protocol to be configurable for carbonlink requests. (#2591, @alikhtag)
  - List Promitor as a collector tool (#2605, @tomkerkhove)
  - REsynthesize: New script forked from Synthesize to install Graphite on CentOS (#2631, @deividgdt)
@@ -34,6 +70,7 @@
  - Find api documentation (Fixing #2616) (#2646, @deniszh)
  - Add aggregateSeriesLists() and aliases for diffSeriesLists(), sumSeriesLists(), multiplySeriesLists() (#2647, @alikhtag)
  - Optionally resolve right hand dip in sums because of lack of current minute in caches (#2659, @cbowman0)
+ - You can disable info.log now (fixing #1860) (#2691, @deniszh)
  
 ## carbon
 
@@ -74,7 +111,7 @@
  - simplify travis-ci config (#2532, @ploxiln)
  - fix function parameter types (#2536, @replay)
  - fixes #2541 (#2542, @replay)
- - prune flake8 ignore list (#2552, @ploxlin)
+ - prune flake8 ignore list (#2552, @ploxiln)
  - flake8: re-enable F841 (local variable assigned but not used) (#2559, @ploxiln)
  - flake8: re-enable E122,E124 (indent of continuation and closing bracket) (#2558, @ploxiln)
  - Fix validator when default value is used (#2555, @replay)

@@ -14,7 +14,7 @@ limitations under the License."""
 
 import os
 import logging
-from logging.handlers import TimedRotatingFileHandler as Rotater
+from logging.handlers import TimedRotatingFileHandler as Rotator
 from logging import NullHandler, FileHandler, StreamHandler
 
 from django.conf import settings
@@ -25,7 +25,7 @@ class GraphiteLogger:
         self.infoLogger = self._config_logger(
             settings.LOG_FILE_INFO,
             'info',
-            True,
+            settings.LOG_INFO_PERFORMANCE,
             level = logging.DEBUG if settings.DEBUG else logging.INFO,
         )
         self.exceptionLogger = self._config_logger(
@@ -65,7 +65,7 @@ class GraphiteLogger:
                     datefmt='%Y-%m-%d,%H:%M:%S')
                 log_file = os.path.join(settings.LOG_DIR, log_file_name)
                 if settings.LOG_ROTATION:  # if we want to rotate logs
-                    handler = Rotater(log_file, when=when, backupCount=backupCount)
+                    handler = Rotator(log_file, when=when, backupCount=backupCount)
                 else:  # let someone else, e.g. logrotate, rotate the logs
                     handler = FileHandler(log_file)
             handler.setFormatter(formatter)
